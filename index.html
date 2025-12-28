@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat - Kacper</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+</head>
+<body>
+
+    <div id="auth-overlay" class="auth-overlay">
+        <div class="auth-box">
+            <h2>Witaj</h2>
+            <input type="text" id="auth-user" placeholder="Login">
+            <input type="password" id="auth-pass" placeholder="Hasło">
+            <button onclick="handleLogin()">Zaloguj się</button>
+            <button onclick="handleRegister()" style="background: transparent; border: 1px solid #444; margin-top: 10px;">Zarejestruj się</button>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <aside class="sidebar">
+            <button class="new-chat"><i class="fas fa-plus"></i> Nowy czat</button>
+            <div class="history-list"></div>
+            <div class="user-footer">
+                <span id="display-username"></span>
+                <i class="fas fa-sign-out-alt" onclick="logout()" style="cursor:pointer"></i>
+            </div>
+        </aside>
+
+        <main class="chat-main">
+            <header>
+                <div class="status-indicator"></div>
+                <span>żurek AI 1.0</span>
+            </header>
+
+            <div class="chat-display" id="chat-display"></div>
+
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <input type="text" id="user-query" placeholder="Zapytaj o coś...">
+                    <button id="send-btn"><i class="fas fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
