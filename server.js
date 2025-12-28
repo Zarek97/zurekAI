@@ -21,7 +21,20 @@ let db;
             filename: "./database.db",
             driver: sqlite3.Database
         });
-        await db.exec(`CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT)`);
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                username TEXT UNIQUE, 
+                password TEXT
+            );
+            CREATE TABLE IF NOT EXISTS chats (
+                id TEXT PRIMARY KEY, 
+                user_id INTEGER, 
+                name TEXT, 
+                messages TEXT,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            );
+        `);
         console.log("SERWER GOTOWY DO DEPLOYA");
     } catch (err) {
         console.error(err);
@@ -39,7 +52,7 @@ app.post("/api/register", async (req, res) => {
         await db.run("INSERT INTO users (username, password) VALUES (?, ?)", [username, hashed]);
         res.json({ success: true });
     } catch (err) {
-        res.status(400).json({ error: "Błąd" });
+        res.status(400).json({ error: "Błąd rejestracji" });
     }
 });
 
@@ -48,18 +61,49 @@ app.post("/api/login", async (req, res) => {
     try {
         const user = await db.get("SELECT * FROM users WHERE username = ?", [username]);
         if (user && await bcrypt.compare(password, user.password)) {
-            res.json({ success: true });
+            res.json({ success: true, userId: user.id });
         } else {
-            res.status(401).json({ error: "Błąd" });
+            res.status(401).json({ error: "Błąd logowania" });
         }
     } catch (err) {
-        res.status(500).json({ error: "Błąd" });
+        res.status(500).json({ error: "Błąd serwera" });
+    }
+});
+
+app.get("/api/chats/:userId", async (req, res) => {
+    try {
+        const chats = await db.all("SELECT * FROM chats WHERE user_id = ?", [req.params.userId]);
+        const formatted = chats.map(c => ({ ...c, messages: JSON.parse(c.messages) }));
+        res.json(formatted);
+    } catch (err) {
+        res.status(500).json({ error: "Błąd pobierania" });
+    }
+});
+
+app.post("/api/chats", async (req, res) => {
+    const { id, userId, name, messages } = req.body;
+    try {
+        await db.run(
+            "INSERT OR REPLACE INTO chats (id, user_id, name, messages) VALUES (?, ?, ?, ?)",
+            [id, userId, name, JSON.stringify(messages)]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: "Błąd zapisu" });
+    }
+});
+
+app.delete("/api/chats/:id", async (req, res) => {
+    try {
+        await db.run("DELETE FROM chats WHERE id = ?", [req.params.id]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: "Błąd usuwania" });
     }
 });
 
 app.post("/api/chat", async (req, res) => {
     const { text } = req.body;
-    if (!text) return res.status(400).json({ error: "Brak tekstu" });
     try {
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
@@ -80,6 +124,4 @@ app.post("/api/chat", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log("Nasłuchiwanie na porcie " + PORT);
-});
+app.listen(PORT);
