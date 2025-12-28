@@ -4,6 +4,7 @@ const sendBtn = document.getElementById('send-btn');
 const historyList = document.querySelector('.history-list');
 const newChatBtn = document.querySelector('.new-chat');
 const authOverlay = document.getElementById('auth-overlay');
+const logoutBtn = document.getElementById('logout-btn');
 
 const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://zurekai.onrender.com';
 
@@ -45,18 +46,26 @@ async function handleLogin() {
         localStorage.setItem('logged_user', user);
         localStorage.setItem('user_id', data.userId);
         location.reload();
+    } else {
+        alert("Błąd logowania");
     }
 }
 
 async function handleRegister() {
     const user = document.getElementById('auth-user').value.trim();
     const pass = document.getElementById('auth-pass').value.trim();
-    await fetch(`${API_URL}/api/register`, {
+    const res = await fetch(`${API_URL}/api/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: user, password: pass })
     });
-    alert("Zarejestrowano");
+    if (res.ok) alert("Zarejestrowano pomyślnie");
+}
+
+function logout() {
+    localStorage.removeItem('logged_user');
+    localStorage.removeItem('user_id');
+    location.reload();
 }
 
 function renderMessage(type, content) {
@@ -135,14 +144,18 @@ function processInput() {
     callGeminiAPI(val);
 }
 
-sendBtn.onclick = processInput;
+if (sendBtn) sendBtn.onclick = processInput;
 
-userQuery.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        processInput();
-    }
-});
+if (userQuery) {
+    userQuery.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            processInput();
+        }
+    });
+}
 
-newChatBtn.onclick = () => { currentChat = null; chatDisplay.innerHTML = ''; };
+if (logoutBtn) logoutBtn.onclick = logout;
+if (newChatBtn) newChatBtn.onclick = () => { currentChat = null; chatDisplay.innerHTML = ''; };
+
 initApp();
