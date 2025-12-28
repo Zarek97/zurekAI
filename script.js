@@ -4,11 +4,19 @@ const sendBtn = document.getElementById('send-btn');
 const historyList = document.querySelector('.history-list');
 const newChatBtn = document.querySelector('.new-chat');
 const authOverlay = document.getElementById('auth-overlay');
+const startWebcamBtn = document.getElementById('start-webcam-btn');
+
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:3000' 
+    : 'https://zurekai.onrender.com';
 
 let currentUser = localStorage.getItem('logged_user') || null;
 let chatHistory = JSON.parse(localStorage.getItem(`history_${currentUser}`)) || [];
 let currentChat = null;
 
+let model, webcam, labelContainer, maxPredictions;
+let lastDetectedClass = "";
+let detectionActive = true;
 
 function initApp() {
     if (currentUser) {
@@ -20,54 +28,102 @@ function initApp() {
     }
 }
 
+async function initTeachableMachine() {
+    startWebcamBtn.disabled = true;
+    startWebcamBtn.textContent = "ŁADOWANIE...";
+    
+    const URL = "https://teachablemachine.withgoogle.com/models/TWÓJ_ID_MODELU/";
+    const modelURL = URL + "model.json";
+    const metadataURL = URL + "metadata.json";
+
+    try {
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
+
+        webcam = new tmImage.Webcam(150, 150, true);
+        await webcam.setup();
+        await webcam.play();
+        
+        document.getElementById("webcam-container").innerHTML = "";
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        labelContainer = document.getElementById("label-container");
+        
+        startWebcamBtn.style.display = "none";
+        window.requestAnimationFrame(loop);
+    } catch (e) {
+        alert("Błąd kamery: " + e.message);
+        startWebcamBtn.disabled = false;
+        startWebcamBtn.textContent = "SPRÓBUJ PONOWNIE";
+    }
+}
+
+async function loop() {
+    webcam.update();
+    await predict();
+    window.requestAnimationFrame(loop);
+}
+
+async function predict() {
+    const prediction = await model.predict(webcam.canvas);
+    let highestProb = 0;
+    let currentClass = "";
+
+    for (let i = 0; i < maxPredictions; i++) {
+        if (prediction[i].probability > highestProb) {
+            highestProb = prediction[i].probability;
+            currentClass = prediction[i].className;
+        }
+    }
+
+    labelContainer.innerHTML = currentClass + ": " + (highestProb * 100).toFixed(0) + "%";
+
+    if (highestProb > 0.98 && currentClass !== lastDetectedClass && currentClass !== "Background" && detectionActive) {
+        lastDetectedClass = currentClass;
+        detectionActive = false;
+        
+        const msg = "Widzę teraz: " + currentClass + ". Co możesz o tym powiedzieć?";
+        renderMessage('user', msg);
+        saveToHistory('user', msg);
+        callGeminiAPI(msg);
+
+        setTimeout(() => { detectionActive = true; }, 7000);
+    }
+}
+
 async function handleLogin() {
     const user = document.getElementById('auth-user').value.trim();
     const pass = document.getElementById('auth-pass').value.trim();
-
-    if (!user || !pass) return alert("Uzupełnij pola!");
-
+    if (!user || !pass) return;
     try {
-        const res = await fetch("http://localhost:3000/api/login", {
+        const res = await fetch(`${API_URL}/api/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username: user, password: pass })
         });
-
         if (res.ok) {
             localStorage.setItem('logged_user', user);
-            currentUser = user;
-            authOverlay.style.display = 'none';
             location.reload(); 
         } else {
-            const errorData = await res.json();
-            alert(errorData.error || "Błąd logowania");
+            alert("Błąd logowania");
         }
     } catch (err) {
-        alert("Brak połączenia z serwerem (sprawdź czy node server.js działa)");
+        alert("Serwer nie odpowiada");
     }
 }
 
 async function handleRegister() {
     const user = document.getElementById('auth-user').value.trim();
     const pass = document.getElementById('auth-pass').value.trim();
-
-    if (!user || !pass) return alert("Uzupełnij pola!");
-
+    if (!user || !pass) return;
     try {
-        const res = await fetch("http://localhost:3000/api/register", {
+        const res = await fetch(`${API_URL}/api/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username: user, password: pass })
         });
-
-        const data = await res.json();
-        if (res.ok) {
-            alert("Konto utworzone! Możesz się zalogować.");
-        } else {
-            alert(data.error);
-        }
+        if (res.ok) alert("Konto OK");
     } catch (err) {
-        alert("Błąd serwera");
+        alert("Błąd rejestracji");
     }
 }
 
@@ -77,28 +133,21 @@ function logout() {
 }
 
 function renderMessage(type, content) {
-    const chatDisplay = document.getElementById('chat-display');
     const div = document.createElement('div');
     div.classList.add('message', type === 'user' ? 'user-msg' : 'ai-msg');
-    
     if (type === 'ai') {
         const finalContent = typeof marked !== 'undefined' ? marked.parse(content) : content;
         div.innerHTML = `<i class="fas fa-robot"></i><div class="ai-content">${finalContent}</div>`;
     } else {
         div.innerHTML = `<div class="user-msg-content">${content}</div>`;
     }
-    
     chatDisplay.appendChild(div);
     chatDisplay.scrollTop = chatDisplay.scrollHeight;
 }
 
 function saveToHistory(type, content) {
     if (!currentChat) {
-        currentChat = { 
-            id: Date.now(), 
-            name: type === 'user' ? content.substring(0, 25) : "Nowy czat", 
-            messages: [] 
-        };
+        currentChat = { id: Date.now(), name: content.substring(0, 15), messages: [] };
         chatHistory.push(currentChat);
     }
     currentChat.messages.push({ type, content });
@@ -109,27 +158,12 @@ function saveToHistory(type, content) {
 function renderHistoryList() {
     if (!historyList) return;
     historyList.innerHTML = '';
-    chatHistory.forEach((chat, index) => {
-        const container = document.createElement('div');
-        container.className = `history-item-container ${currentChat === chat ? 'active' : ''}`;
-        
+    chatHistory.forEach((chat) => {
         const item = document.createElement('div');
         item.className = 'history-item';
         item.textContent = chat.name;
-        item.onclick = () => { currentChat = chat; renderChat(chat); renderHistoryList(); };
-
-        const del = document.createElement('i');
-        del.className = 'fas fa-trash delete-chat-btn';
-        del.onclick = (e) => {
-            e.stopPropagation();
-            chatHistory.splice(index, 1);
-            if (currentChat === chat) { currentChat = null; chatDisplay.innerHTML = ''; }
-            localStorage.setItem(`history_${currentUser}`, JSON.stringify(chatHistory));
-            renderHistoryList();
-        };
-
-        container.append(item, del);
-        historyList.appendChild(container);
+        item.onclick = () => { currentChat = chat; renderChat(chat); };
+        historyList.appendChild(item);
     });
 }
 
@@ -141,33 +175,21 @@ function renderChat(chat) {
 async function callGeminiAPI(text) {
     const typing = document.createElement('div');
     typing.className = 'message ai-msg';
-    typing.innerHTML = `<i class="fas fa-robot"></i> <span class="typing">AI myśli...</span>`;
+    typing.innerHTML = `<i class="fas fa-robot"></i> <span class="typing">AI 2.5 myśli...</span>`;
     chatDisplay.appendChild(typing);
-    chatDisplay.scrollTop = chatDisplay.scrollHeight;
-
     try {
-        const res = await fetch("http://localhost:3000/api/chat", {
+        const res = await fetch(`${API_URL}/api/chat`, {
             method: "POST",
-            headers: { 
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text: text })
         });
-
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.error || "Błąd serwera");
-        }
-
         const data = await res.json();
         typing.remove();
         renderMessage('ai', data.reply);
         saveToHistory('ai', data.reply);
     } catch (err) {
         typing.remove();
-        console.error("Szczegóły błędu:", err);
-        renderMessage('ai', "Błąd połączenia: " + err.message);
+        renderMessage('ai', "Błąd połączenia z AI");
     }
 }
 
@@ -180,10 +202,9 @@ function processInput() {
     callGeminiAPI(val);
 }
 
+if (startWebcamBtn) startWebcamBtn.onclick = initTeachableMachine;
 if (sendBtn) sendBtn.onclick = processInput;
 if (userQuery) userQuery.onkeydown = e => { if (e.key === 'Enter') processInput(); };
-if (newChatBtn) newChatBtn.onclick = () => { currentChat = null; chatDisplay.innerHTML = ''; renderHistoryList(); };
-
-function loadHistory() { renderHistoryList(); if (currentChat) renderChat(currentChat); }
+if (newChatBtn) newChatBtn.onclick = () => { currentChat = null; chatDisplay.innerHTML = ''; };
 
 initApp();
