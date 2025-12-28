@@ -36,10 +36,9 @@ let db;
             );
         `);
         
-        const users = await db.all("SELECT id, username FROM users");
-        console.log("--- START SYSTEMU: UŻYTKOWNICY W BAZIE ---");
+        const users = await db.all("SELECT * FROM users");
+        console.log("--- BAZA DANYCH PRZY STARCIE ---");
         console.table(users);
-        console.log("------------------------------------------");
         
         console.log("SERWER GOTOWY DO DEPLOYA");
     } catch (err) {
@@ -54,9 +53,9 @@ app.get('/', (req, res) => {
 app.post("/api/register", async (req, res) => {
     const { username, password } = req.body;
     try {
+        console.log("PRÓBA REJESTRACJI -> Login: " + username + " | Hasło: " + password);
         const hashed = await bcrypt.hash(password, 10);
         await db.run("INSERT INTO users (username, password) VALUES (?, ?)", [username, hashed]);
-        console.log("NOWA REJESTRACJA: " + username);
         res.json({ success: true });
     } catch (err) {
         res.status(400).json({ error: "Błąd" });
@@ -66,12 +65,13 @@ app.post("/api/register", async (req, res) => {
 app.post("/api/login", async (req, res) => {
     const { username, password } = req.body;
     try {
+        console.log("PRÓBA LOGOWANIA -> Login: " + username + " | Hasło: " + password);
         const user = await db.get("SELECT * FROM users WHERE username = ?", [username]);
         if (user && await bcrypt.compare(password, user.password)) {
-            console.log("ZALOGOWANO UŻYTKOWNIKA: " + username + " (ID: " + user.id + ")");
+            console.log("LOGOWANIE UDANE: " + username);
             res.json({ success: true, userId: user.id });
         } else {
-            console.log("NIEUDANA PRÓBA LOGOWANIA: " + username);
+            console.log("LOGOWANIE NIEUDANE: " + username);
             res.status(401).json({ error: "Błąd" });
         }
     } catch (err) {
