@@ -37,9 +37,9 @@ let db;
         `);
         
         const users = await db.all("SELECT id, username FROM users");
-        console.log("--- LISTA UŻYTKOWNIKÓW W BAZIE ---");
+        console.log("--- START SYSTEMU: UŻYTKOWNICY W BAZIE ---");
         console.table(users);
-        console.log("----------------------------------");
+        console.log("------------------------------------------");
         
         console.log("SERWER GOTOWY DO DEPLOYA");
     } catch (err) {
@@ -56,9 +56,10 @@ app.post("/api/register", async (req, res) => {
     try {
         const hashed = await bcrypt.hash(password, 10);
         await db.run("INSERT INTO users (username, password) VALUES (?, ?)", [username, hashed]);
+        console.log("NOWA REJESTRACJA: " + username);
         res.json({ success: true });
     } catch (err) {
-        res.status(400).json({ error: "Błąd rejestracji" });
+        res.status(400).json({ error: "Błąd" });
     }
 });
 
@@ -67,12 +68,14 @@ app.post("/api/login", async (req, res) => {
     try {
         const user = await db.get("SELECT * FROM users WHERE username = ?", [username]);
         if (user && await bcrypt.compare(password, user.password)) {
+            console.log("ZALOGOWANO UŻYTKOWNIKA: " + username + " (ID: " + user.id + ")");
             res.json({ success: true, userId: user.id });
         } else {
-            res.status(401).json({ error: "Błąd logowania" });
+            console.log("NIEUDANA PRÓBA LOGOWANIA: " + username);
+            res.status(401).json({ error: "Błąd" });
         }
     } catch (err) {
-        res.status(500).json({ error: "Błąd serwera" });
+        res.status(500).json({ error: "Błąd" });
     }
 });
 
@@ -82,7 +85,7 @@ app.get("/api/chats/:userId", async (req, res) => {
         const formatted = chats.map(c => ({ ...c, messages: JSON.parse(c.messages) }));
         res.json(formatted);
     } catch (err) {
-        res.status(500).json({ error: "Błąd pobierania" });
+        res.status(500).json({ error: "Błąd" });
     }
 });
 
@@ -95,7 +98,7 @@ app.post("/api/chats", async (req, res) => {
         );
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: "Błąd zapisu" });
+        res.status(500).json({ error: "Błąd" });
     }
 });
 
@@ -104,7 +107,7 @@ app.delete("/api/chats/:id", async (req, res) => {
         await db.run("DELETE FROM chats WHERE id = ?", [req.params.id]);
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: "Błąd usuwania" });
+        res.status(500).json({ error: "Błąd" });
     }
 });
 
