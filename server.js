@@ -16,8 +16,7 @@ app.use(express.static(path.join(__dirname)));
 const OPENROUTER_KEY = process.env.OPENROUTER_KEY;
 let db;
 
-const isLocal = process.env.NODE_ENV !== 'production' && !process.env.RENDER;
-const dbDir = isLocal ? path.join(__dirname, "data") : "/data";
+const dbDir = process.env.RENDER ? path.join(__dirname, "data") : path.join(__dirname, "data");
 const dbPath = path.join(dbDir, "database.db");
 
 if (!fs.existsSync(dbDir)) {
@@ -46,7 +45,7 @@ if (!fs.existsSync(dbDir)) {
         `);
         
         const users = await db.all("SELECT * FROM users");
-        console.log("--- BAZA DANYCH (" + (isLocal ? "LOKALNA" : "SERWER") + ") ---");
+        console.log("--- BAZA DANYCH AKTYWNA ---");
         console.table(users);
         
         console.log("SERWER GOTOWY");
