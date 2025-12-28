@@ -35,6 +35,12 @@ let db;
                 FOREIGN KEY(user_id) REFERENCES users(id)
             );
         `);
+        
+        const users = await db.all("SELECT id, username FROM users");
+        console.log("--- LISTA UŻYTKOWNIKÓW W BAZIE ---");
+        console.table(users);
+        console.log("----------------------------------");
+        
         console.log("SERWER GOTOWY DO DEPLOYA");
     } catch (err) {
         console.error(err);
