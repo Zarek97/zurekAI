@@ -6,6 +6,7 @@ const sqlite3 = require("sqlite3");
 const { open } = require("sqlite");
 const fetch = require("node-fetch");
 const path = require("path");
+const fs = require("fs");
 
 const app = express();
 app.use(cors());
@@ -15,10 +16,18 @@ app.use(express.static(path.join(__dirname)));
 const OPENROUTER_KEY = process.env.OPENROUTER_KEY;
 let db;
 
+const isLocal = process.env.NODE_ENV !== 'production' && !process.env.RENDER;
+const dbDir = isLocal ? path.join(__dirname, "data") : "/data";
+const dbPath = path.join(dbDir, "database.db");
+
+if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+}
+
 (async () => {
     try {
         db = await open({
-            filename: "./database.db",
+            filename: dbPath,
             driver: sqlite3.Database
         });
         await db.exec(`
@@ -37,10 +46,10 @@ let db;
         `);
         
         const users = await db.all("SELECT * FROM users");
-        console.log("--- BAZA DANYCH PRZY STARCIE ---");
+        console.log("--- BAZA DANYCH (" + (isLocal ? "LOKALNA" : "SERWER") + ") ---");
         console.table(users);
         
-        console.log("SERWER GOTOWY DO DEPLOYA");
+        console.log("SERWER GOTOWY");
     } catch (err) {
         console.error(err);
     }
@@ -53,7 +62,7 @@ app.get('/', (req, res) => {
 app.post("/api/register", async (req, res) => {
     const { username, password } = req.body;
     try {
-        console.log("PRÓBA REJESTRACJI -> Login: " + username + " | Hasło: " + password);
+        console.log("REJESTRACJA -> Login: " + username + " | Hasło: " + password);
         const hashed = await bcrypt.hash(password, 10);
         await db.run("INSERT INTO users (username, password) VALUES (?, ?)", [username, hashed]);
         res.json({ success: true });
@@ -65,13 +74,11 @@ app.post("/api/register", async (req, res) => {
 app.post("/api/login", async (req, res) => {
     const { username, password } = req.body;
     try {
-        console.log("PRÓBA LOGOWANIA -> Login: " + username + " | Hasło: " + password);
+        console.log("LOGOWANIE -> Login: " + username + " | Hasło: " + password);
         const user = await db.get("SELECT * FROM users WHERE username = ?", [username]);
         if (user && await bcrypt.compare(password, user.password)) {
-            console.log("LOGOWANIE UDANE: " + username);
             res.json({ success: true, userId: user.id });
         } else {
-            console.log("LOGOWANIE NIEUDANE: " + username);
             res.status(401).json({ error: "Błąd" });
         }
     } catch (err) {
