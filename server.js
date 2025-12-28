@@ -113,6 +113,18 @@ app.delete("/api/chats/:id", async (req, res) => {
 
 app.post("/api/chat", async (req, res) => {
     const { text } = req.body;
+    const lowerText = text.toLowerCase();
+
+    if (
+        (lowerText.includes("kto") && lowerText.includes("stworzył")) || 
+        (lowerText.includes("kto") && lowerText.includes("zrobił")) || 
+        lowerText.includes("twórca") || 
+        lowerText.includes("twórcą") ||
+        lowerText.includes("autorem")
+    ) {
+        return res.json({ reply: "Żurek mnie stworzył." });
+    }
+
     try {
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
