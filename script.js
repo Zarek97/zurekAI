@@ -23,9 +23,13 @@ async function initApp() {
 }
 
 async function loadChatsFromServer() {
-    const res = await fetch(`${API_URL}/api/chats/${currentUserId}`);
-    chatHistory = await res.json();
-    renderHistoryList();
+    try {
+        const res = await fetch(`${API_URL}/api/chats/${currentUserId}`);
+        chatHistory = await res.json();
+        renderHistoryList();
+    } catch (err) {
+        console.error("Błąd pobierania czatów");
+    }
 }
 
 async function handleLogin() {
@@ -123,13 +127,22 @@ async function callGeminiAPI(text) {
     renderHistoryList();
 }
 
-sendBtn.onclick = () => {
+function processInput() {
     const val = userQuery.value.trim();
     if (!val) return;
     renderMessage('user', val);
     userQuery.value = '';
     callGeminiAPI(val);
-};
+}
+
+sendBtn.onclick = processInput;
+
+userQuery.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        processInput();
+    }
+});
 
 newChatBtn.onclick = () => { currentChat = null; chatDisplay.innerHTML = ''; };
 initApp();
