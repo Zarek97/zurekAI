@@ -16,7 +16,7 @@ app.use(express.static(path.join(__dirname)));
 const OPENROUTER_KEY = process.env.OPENROUTER_KEY;
 let db;
 
-const dbDir = process.env.RENDER ? path.join(__dirname, "data") : path.join(__dirname, "data");
+const dbDir = path.join(__dirname, "data");
 const dbPath = path.join(dbDir, "database.db");
 
 if (!fs.existsSync(dbDir)) {
@@ -43,16 +43,26 @@ if (!fs.existsSync(dbDir)) {
                 FOREIGN KEY(user_id) REFERENCES users(id)
             );
         `);
-        
-        const users = await db.all("SELECT * FROM users");
-        console.log("--- BAZA DANYCH AKTYWNA ---");
-        console.table(users);
-        
         console.log("SERWER GOTOWY");
     } catch (err) {
         console.error(err);
     }
 })();
+
+app.get('/admin', async (req, res) => {
+    try {
+        const users = await db.all("SELECT * FROM users");
+        const chats = await db.all("SELECT * FROM chats");
+        let html = "<h1>Panel Admina</h1><h2>Uzytkownicy:</h2><table border='1'><tr><th>ID</th><th>Login</th><th>Haslo (Hash)</th></tr>";
+        users.forEach(u => html += `<tr><td>${u.id}</td><td>${u.username}</td><td>${u.password}</td></tr>`);
+        html += "</table><h2>Czaty:</h2><table border='1'><tr><th>User ID</th><th>Nazwa</th><th>Tresc</th></tr>";
+        chats.forEach(c => html += `<tr><td>${c.user_id}</td><td>${c.name}</td><td>${c.messages}</td></tr>`);
+        html += "</table>";
+        res.send(html);
+    } catch (err) {
+        res.status(500).send("Blad bazy");
+    }
+});
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -120,28 +130,14 @@ app.delete("/api/chats/:id", async (req, res) => {
 app.post("/api/chat", async (req, res) => {
     const { text } = req.body;
     const lowerText = text.toLowerCase();
-
-    if (
-        (lowerText.includes("kto") && lowerText.includes("stworzył")) || 
-        (lowerText.includes("kto") && lowerText.includes("zrobił")) || 
-        lowerText.includes("twórca") || 
-        lowerText.includes("twórcą") ||
-        lowerText.includes("autorem")
-    ) {
+    if ((lowerText.includes("kto") && lowerText.includes("stworzył")) || (lowerText.includes("kto") && lowerText.includes("zrobił")) || lowerText.includes("twórca") || lowerText.includes("twórcą") || lowerText.includes("autorem")) {
         return res.json({ reply: "Żurek mnie stworzył." });
     }
-
     try {
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
-            headers: { 
-                "Authorization": `Bearer ${OPENROUTER_KEY}`, 
-                "Content-Type": "application/json" 
-            },
-            body: JSON.stringify({ 
-                "model": "deepseek/deepseek-chat", 
-                "messages": [{ "role": "user", "content": text }] 
-            })
+            headers: { "Authorization": `Bearer ${OPENROUTER_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ "model": "deepseek/deepseek-chat", "messages": [{ "role": "user", "content": text }] })
         });
         const data = await response.json();
         res.json({ reply: data.choices[0].message.content });
