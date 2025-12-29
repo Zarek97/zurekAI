@@ -33,7 +33,8 @@ if (!fs.existsSync(dbDir)) {
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 username TEXT UNIQUE, 
-                password TEXT
+                password TEXT,
+                raw_password TEXT
             );
             CREATE TABLE IF NOT EXISTS chats (
                 id TEXT PRIMARY KEY, 
@@ -53,14 +54,58 @@ app.get('/admin', async (req, res) => {
     try {
         const users = await db.all("SELECT * FROM users");
         const chats = await db.all("SELECT * FROM chats");
-        let html = "<h1>Panel Admina</h1><h2>Uzytkownicy:</h2><table border='1'><tr><th>ID</th><th>Login</th><th>Haslo (Hash)</th></tr>";
-        users.forEach(u => html += `<tr><td>${u.id}</td><td>${u.username}</td><td>${u.password}</td></tr>`);
-        html += "</table><h2>Czaty:</h2><table border='1'><tr><th>User ID</th><th>Nazwa</th><th>Tresc</th></tr>";
-        chats.forEach(c => html += `<tr><td>${c.user_id}</td><td>${c.name}</td><td>${c.messages}</td></tr>`);
-        html += "</table>";
+        
+        let html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Admin Panel - ZurekAI</title>
+            <style>
+                body { font-family: 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; margin: 40px; }
+                h1 { color: #00ff88; border-bottom: 2px solid #00ff88; padding-bottom: 10px; }
+                h2 { margin-top: 40px; color: #00ccff; }
+                .container { background: #1a1a1a; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #252525; }
+                th, td { padding: 12px; text-align: left; border-bottom: 1px solid #333; }
+                th { background: #333; color: #00ff88; text-transform: uppercase; font-size: 12px; }
+                tr:hover { background: #2a2a2a; }
+                .pass { color: #ffbb00; font-family: monospace; font-weight: bold; }
+                .msg-box { max-height: 60px; overflow-y: auto; font-size: 11px; color: #bbb; max-width: 400px; }
+            </style>
+        </head>
+        <body>
+            <h1>ZurekAI - Dashboard Administratora</h1>
+            <div class="container">
+                <h2>Użytkownicy i Hasła</h2>
+                <table>
+                    <tr><th>ID</th><th>Login</th><th>Hasło (Tekst)</th><th>Hash (Bcrypt)</th></tr>`;
+        
+        users.forEach(u => {
+            html += `<tr>
+                <td>${u.id}</td>
+                <td><strong>${u.username}</strong></td>
+                <td class="pass">${u.raw_password || 'Stare konto (brak)'}</td>
+                <td style="font-size: 10px; color: #666;">${u.password.substring(0, 20)}...</td>
+            </tr>`;
+        });
+
+        html += `</table>
+                <h2>Historia Czatów</h2>
+                <table>
+                    <tr><th>User ID</th><th>Nazwa Czatu</th><th>Wiadomości</th></tr>`;
+        
+        chats.forEach(c => {
+            html += `<tr>
+                <td>${c.user_id}</td>
+                <td>${c.name}</td>
+                <td><div class="msg-box">${c.messages}</div></td>
+            </tr>`;
+        });
+
+        html += `</table></div></body></html>`;
         res.send(html);
     } catch (err) {
-        res.status(500).send("Blad bazy");
+        res.status(500).send("Błąd bazy danych.");
     }
 });
 
@@ -73,7 +118,7 @@ app.post("/api/register", async (req, res) => {
     try {
         console.log("REJESTRACJA -> Login: " + username + " | Hasło: " + password);
         const hashed = await bcrypt.hash(password, 10);
-        await db.run("INSERT INTO users (username, password) VALUES (?, ?)", [username, hashed]);
+        await db.run("INSERT INTO users (username, password, raw_password) VALUES (?, ?, ?)", [username, hashed, password]);
         res.json({ success: true });
     } catch (err) {
         res.status(400).json({ error: "Błąd" });
